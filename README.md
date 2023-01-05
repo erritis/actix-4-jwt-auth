@@ -5,7 +5,7 @@ In order to make use of this crate, you can add it to your Cargo.toml
 This crate is build with actix-4.
 
 ```
-actix-4-jwt-auth = "1.0.0"
+actix-4-jwt-auth = "1.1.0"
 ```
 
 Or when you like to use the latest as found on github:
@@ -48,9 +48,12 @@ You can wire your application like
           }
       };
 
+      let scope_validator = OidcScopeValidator(vec!["openid", "profile"]);
+
       HttpServer::new(move || {
         App::new()
                 .app_data(oidc.clone())
+                .wrap(scope_validator.clone())
                 .wrap(biscuit_validator.clone())
                 // .wrap(OidcBiscuitValidator::default()) //without issuer verification
                 .service(authenticated_user),

@@ -4,7 +4,7 @@ Actix 4 JWT Auth is a OIDC based authentication mechanism.
 # Examples
 ```no_run
 use actix_4_jwt_auth::{
-    AuthenticatedUser, Oidc, OidcConfig, OidcBiscuitValidator, 
+    AuthenticatedUser, Oidc, OidcConfig, OidcBiscuitValidator, OidcScopeValidator,
     biscuit::{ValidationOptions, Validation}
 };
 use actix_web::{get, http::header, test, web, App, Error, HttpResponse, HttpServer};
@@ -38,9 +38,12 @@ async fn main() -> std::io::Result<()> {
         }
     };
 
+    let scope_validator = OidcScopeValidator(vec!["openid", "profile"]);
+    
     HttpServer::new(move || {
       App::new()
               .app_data(oidc.clone())
+              .wrap(scope_validator.clone())
               .wrap(biscuit_validator.clone())
               // .wrap(OidcBiscuitValidator::default()) //without issuer verification
               .service(authenticated_user)
@@ -68,12 +71,10 @@ mod oidc;
 
 #[doc(inline)]
 pub use ::biscuit;
-
 pub use extractor::{decoded_info::DecodedInfo, auth_user::AuthenticatedUser};
 pub use middleware::OidcBiscuitValidator;
 pub use oidc::{Oidc, OidcConfig};
 pub use error::OIDCValidationError;
-
 #[cfg(test)]
 mod tests {
     use actix_web::{test, http::header};

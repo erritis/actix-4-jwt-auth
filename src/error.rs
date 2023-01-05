@@ -42,6 +42,9 @@ pub enum OIDCValidationError {
     ///Token does not have sufficient rights
     #[error("Token does not have sufficient rights")]
     IvalidAccess,
+    ///Scopes in an access token are not valid
+    #[error("Scopes in an access token are not valid")]
+    IvalidScopes,
 }
 
 impl From<awc::error::HttpError> for OIDCValidationError {
@@ -80,6 +83,7 @@ impl ResponseError for OIDCValidationError {
             OIDCValidationError::ConnectivityError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             OIDCValidationError::CryptoError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             OIDCValidationError::IvalidAccess => StatusCode::FORBIDDEN,
+            OIDCValidationError::IvalidScopes=> StatusCode::FORBIDDEN,
         }
     }
 }
