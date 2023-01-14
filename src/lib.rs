@@ -2,10 +2,9 @@
 //!
 //! # Examples
 //! ```no_run
-//! use actix_4_jwt_auth::{AuthenticatedUser, OIDCValidator, OIDCValidatorConfig};
+//! use actix_4_jwt_auth::{AuthenticatedUser, OIDCValidator, OIDCValidatorConfig, biscuit::ValidationOptions};
 //! use actix_web::{get, http::header, test, web, App, Error, HttpResponse, HttpServer};
 //! use serde::{Deserialize, Serialize};
-//! use biscuit::ValidationOptions;
 //!
 //! #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 //! pub struct FoundClaims {
@@ -68,8 +67,10 @@ use thiserror::Error;
 
 mod extractor;
 
+#[doc(inline)]
+pub use ::biscuit;
+
 pub use extractor::{AuthenticatedUser, OIDCValidatorConfig};
-use log::info;
 
 /// When a JWT token is received and validated, it may be faulty due to different reasons
 #[derive(Error, Debug)]
@@ -217,10 +218,9 @@ impl OIDCValidator {
                 let authenticated_user: T = serde_json::from_value(json_value).unwrap();
                 Ok(authenticated_user)
             },
-            Err(err)  => {
-                info!("Authorization error: {}", err);
+            Err(_err)  => {
                 Err(OIDCValidationError::Unauthorized)
-            }
+    }
         }
     }
 
