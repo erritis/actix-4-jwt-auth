@@ -1,15 +1,13 @@
 
 use std::{future::{ready, Ready}, rc::Rc};
-
-use crate::{DecodedInfo, OIDCValidationError};
+use crate::{DecodedInfo, OIDCValidationError, AuthenticatedUser};
 use actix_web::{
     dev::{forward_ready, Service, ServiceRequest, ServiceResponse, Transform},
     Error, body::{EitherBody, BoxBody},
 };
 use futures_util::future::LocalBoxFuture;
 use biscuit::ValidationOptions;
-
-
+use serde::{Serialize, Deserialize};
 
 
 /// Middleware with standard biscuit validation
@@ -74,7 +72,6 @@ where
         })
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -275,5 +272,66 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::FORBIDDEN);
         Ok(())
+    }
+}
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
+struct ScopeClaims {
+    pub scope: String,
+}
+
+/// Middleware that checks for required scopes
+#[derive(Debug, PartialEq, Clone)]
+pub struct OidcScopeValidator(pub Vec<&'static str>);
+
+
+impl<S, B> Transform<S, ServiceRequest> for OidcScopeValidator
+where
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error> + 'static,
+    S::Future: 'static,
+    B: 'static,
+{
+    type Response = ServiceResponse<B>;
+    type Error = Error;
+    type InitError = ();
+    type Transform = OidcScopeValidatorMiddleware<S>;
+    type Future = Ready<Result<Self::Transform, Self::InitError>>;
+
+    fn new_transform(&self, service: S) -> Self::Future {
+        ready(Ok(OidcScopeValidatorMiddleware { service: Rc::new(service), scopes: self.0.clone() }))
+    }
+}
+
+pub struct OidcScopeValidatorMiddleware<S> {
+    service: Rc<S>,
+    scopes: Vec<&'static str>,
+}
+
+impl<S, B> Service<ServiceRequest> for OidcScopeValidatorMiddleware<S>
+where
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error> + 'static,
+    S::Future: 'static,
+    B: 'static
+{
+    type Response = ServiceResponse<B>;
+    type Error = Error;
+    type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
+
+    forward_ready!(service);
+
+    fn call(&self, mut req: ServiceRequest) -> Self::Future {
+        let svc = self.service.clone();
+        let scopes = self.scopes.clone();
+
+        Box::pin(async move {
+            let user: AuthenticatedUser<ScopeClaims> = req.extract::<AuthenticatedUser<ScopeClaims>>().await?;
+            let res =  scopes.iter().all(|item| user.claims.scope.contains(item));
+            if res == true {
+                let fut = svc.call(req);
+                let res = fut.await?;
+                Ok(res)
+            } else {
+                Err(OIDCValidationError::IvalidAccess.into())
+            }
+        })
     }
 }
